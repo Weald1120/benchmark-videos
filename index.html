@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>对标视频</title>
+<style>
+  :root{
+    --purple-deep:#4A1D8F;
+    --purple:#7B2FF7;
+    --purple-light:#A855F7;
+    --ink:#1A1523;
+    --ink-2:#7A7288;
+    --bg:#F7F5FB;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
+    background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 8px 32px}
+
+  header{
+    background:linear-gradient(135deg,var(--purple-deep) 0%,var(--purple) 55%,var(--purple-light) 100%);
+    color:#fff;padding:18px 16px 16px;margin:0 -8px 4px;border-radius:0 0 20px 20px;
+  }
+  header h1{font-size:19px;font-weight:700;letter-spacing:-.3px;margin-bottom:2px}
+  header p{font-size:12px;opacity:.85}
+
+  .sec{padding-top:14px}
+  .sec-head{display:flex;align-items:center;gap:8px;padding:0 4px 8px}
+  .sec-head .bar{
+    width:3px;height:14px;border-radius:2px;flex-shrink:0;
+    background:linear-gradient(180deg,var(--purple),var(--purple-light));
+  }
+  .sec-head h2{font-size:15px;font-weight:700;letter-spacing:-.2px}
+  .sec-head .badge{
+    font-size:10px;font-weight:700;color:#fff;
+    background:linear-gradient(135deg,var(--purple),var(--purple-light));
+    padding:2px 6px;border-radius:20px;letter-spacing:.3px;
+  }
+  .sec-head .cnt{margin-left:auto;font-size:11.5px;color:var(--ink-2)}
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:8px;
+  }
+
+  .cell{
+    position:relative;border-radius:12px;overflow:hidden;background:#000;
+    aspect-ratio:9/16;
+    transition:box-shadow .2s ease;
+  }
+  .cell.playing{box-shadow:0 0 0 2px var(--purple)}
+
+  video{
+    width:100%;height:100%;object-fit:cover;display:block;background:#000;
+  }
+
+  footer{text-align:center;font-size:11px;color:#8A8496;margin-top:24px;opacity:.75}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>对标视频</h1>
+    <p>按批次更新 · 共 <span id="total">0</span> 条</p>
+  </header>
+
+  <div id="sections"></div>
+
+  <footer>内部对标素材，请勿外传</footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+  const sections = document.getElementById("sections");
+  const BATCHES = window.BATCHES || [];
+  let total = 0;
+
+  BATCHES.forEach((batch, bi) => {
+    total += batch.count;
+
+    const sec = document.createElement("section");
+    sec.className = "sec";
+
+    const head = document.createElement("div");
+    head.className = "sec-head";
+    head.innerHTML = `
+      <span class="bar"></span>
+      <h2>${batch.label}</h2>
+      ${bi === 0 ? '<span class="badge">最新</span>' : ""}
+      <span class="cnt">${batch.count} 条</span>`;
+    sec.appendChild(head);
+
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    sec.appendChild(grid);
+
+    batch.items.forEach(item => {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.innerHTML = `<video playsinline webkit-playsinline preload="none" controls
+        poster="${item.poster}" data-src="${item.src}"></video>`;
+      grid.appendChild(cell);
+
+      const video = cell.querySelector("video");
+
+      cell.addEventListener("click", () => {
+        document.querySelectorAll(".cell").forEach(other => {
+          if (other !== cell) {
+            other.classList.remove("playing");
+            other.querySelector("video").pause();
+          }
+        });
+        if (!video.src) video.src = video.dataset.src;  // 首次点击才加载
+        video.play().catch(() => {});
+      });
+
+      video.addEventListener("play",  () => cell.classList.add("playing"));
+      video.addEventListener("pause", () => cell.classList.remove("playing"));
+      video.addEventListener("ended", () => cell.classList.remove("playing"));
+    });
+
+    sections.appendChild(sec);
+  });
+
+  document.getElementById("total").textContent = total;
+</script>
+</body>
+</html>
