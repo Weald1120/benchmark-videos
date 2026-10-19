@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="format-detection" content="telephone=no">
 <title>对标视频</title>
 <style>
   :root{
@@ -10,7 +11,6 @@
     --purple:#7B2FF7;
     --purple-light:#A855F7;
     --ink:#1A1523;
-    --ink-2:#7A7288;
     --bg:#F7F5FB;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -39,33 +39,59 @@
     background:linear-gradient(135deg,var(--purple),var(--purple-light));
     padding:2px 6px;border-radius:20px;letter-spacing:.3px;
   }
-  .sec-head .cnt{margin-left:auto;font-size:11.5px;color:var(--ink-2)}
+  .sec-head .cnt{margin-left:auto;font-size:11.5px;color:#7A7288}
 
+  /* 两列：用 flex 而非 grid，兼容旧版微信 X5 内核 */
   .grid{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:8px;
+    display:-webkit-flex;
+    display:flex;
+    -webkit-flex-wrap:wrap;
+    flex-wrap:wrap;
+    margin:0 -4px;
+  }
+  .cellwrap{
+    width:50%;
+    padding:0 4px 8px;
   }
 
+  /* 用 padding-bottom 撑比例，避免 aspect-ratio 在老内核失效导致高度为 0 */
   .cell{
-    position:relative;border-radius:12px;overflow:hidden;background:#000;
-    aspect-ratio:9/16;
-    transition:box-shadow .2s ease;
+    position:relative;
+    width:100%;
+    padding-bottom:177.78%;
+    background:#000;
+    border-radius:12px;
   }
-  .cell.playing{box-shadow:0 0 0 2px var(--purple)}
 
+  /* 圆角直接加在 video 上，父级不做 overflow 裁剪（规避 iOS 画面卡住的合成 bug） */
   video{
-    width:100%;height:100%;object-fit:cover;display:block;background:#000;
+    position:absolute;
+    top:0;left:0;
+    width:100%;height:100%;
+    display:block;
+    background:#000;
+    border-radius:12px;
+    -o-object-fit:contain;
+    object-fit:contain;
+    -webkit-transform:translateZ(0);
+    transform:translateZ(0);
+    -webkit-backface-visibility:hidden;
+    backface-visibility:hidden;
   }
 
-  footer{text-align:center;font-size:11px;color:#8A8496;margin-top:24px;opacity:.75}
+  footer{text-align:center;font-size:11px;color:#8A8496;margin-top:20px;opacity:.75}
+
+  @media(min-width:700px){
+    .wrap{padding:0 20px 40px}
+    header{margin:0 -20px 4px}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>对标视频</h1>
-    <p>按批次更新 · 共 <span id="total">0</span> 条</p>
+    <p>点视频上的播放键即可观看 · 共 <span id="total">0</span> 条</p>
   </header>
 
   <div id="sections"></div>
@@ -75,52 +101,61 @@
 
 <script src="data.js"></script>
 <script>
-  const sections = document.getElementById("sections");
-  const BATCHES = window.BATCHES || [];
-  let total = 0;
+  var sections = document.getElementById("sections");
+  var BATCHES = window.BATCHES || [];
+  var total = 0;
 
-  BATCHES.forEach((batch, bi) => {
+  BATCHES.forEach(function (batch, bi) {
     total += batch.count;
 
-    const sec = document.createElement("section");
+    var sec = document.createElement("section");
     sec.className = "sec";
 
-    const head = document.createElement("div");
+    var head = document.createElement("div");
     head.className = "sec-head";
-    head.innerHTML = `
-      <span class="bar"></span>
-      <h2>${batch.label}</h2>
-      ${bi === 0 ? '<span class="badge">最新</span>' : ""}
-      <span class="cnt">${batch.count} 条</span>`;
+    head.innerHTML =
+      '<span class="bar"></span>' +
+      "<h2>" + batch.label + "</h2>" +
+      (bi === 0 ? '<span class="badge">最新</span>' : "") +
+      '<span class="cnt">' + batch.count + " 条</span>";
     sec.appendChild(head);
 
-    const grid = document.createElement("div");
+    var grid = document.createElement("div");
     grid.className = "grid";
     sec.appendChild(grid);
 
-    batch.items.forEach(item => {
-      const cell = document.createElement("div");
+    batch.items.forEach(function (item) {
+      var wrap = document.createElement("div");
+      wrap.className = "cellwrap";
+
+      var cell = document.createElement("div");
       cell.className = "cell";
-      cell.innerHTML = `<video playsinline webkit-playsinline preload="none" controls
-        poster="${item.poster}" data-src="${item.src}"></video>`;
-      grid.appendChild(cell);
 
-      const video = cell.querySelector("video");
+      // 关键修复：src 直接写在标签上，不在点击时才赋值
+      // 微信内置浏览器里"运行时赋值 + 立即 play()"会静默失败
+      var video = document.createElement("video");
+      video.setAttribute("controls", "");
+      video.setAttribute("controlsList", "nodownload");
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
+      video.setAttribute("x5-playsinline", "true");
+      video.setAttribute("x5-video-player-type", "h5");
+      video.setAttribute("x5-video-player-fullscreen", "true");
+      video.setAttribute("preload", "metadata");
+      video.setAttribute("poster", item.poster);
+      video.setAttribute("src", item.src);
 
-      cell.addEventListener("click", () => {
-        document.querySelectorAll(".cell").forEach(other => {
-          if (other !== cell) {
-            other.classList.remove("playing");
-            other.querySelector("video").pause();
-          }
-        });
-        if (!video.src) video.src = video.dataset.src;  // 首次点击才加载
-        video.play().catch(() => {});
+      // 一条播放时暂停其它，只调用 pause()，不主动 play()，避免被拦截
+      video.addEventListener("play", function () {
+        var all = document.querySelectorAll("video");
+        for (var k = 0; k < all.length; k++) {
+          if (all[k] !== video) all[k].pause();
+        }
       });
 
-      video.addEventListener("play",  () => cell.classList.add("playing"));
-      video.addEventListener("pause", () => cell.classList.remove("playing"));
-      video.addEventListener("ended", () => cell.classList.remove("playing"));
+      cell.appendChild(video);
+      wrap.appendChild(cell);
+      grid.appendChild(wrap);
     });
 
     sections.appendChild(sec);
